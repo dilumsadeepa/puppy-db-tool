@@ -84,6 +84,7 @@ Name=$APP_NAME
 Comment=Desktop database management tool
 Exec=/usr/local/bin/$BIN_NAME
 Icon=$PKG_NAME
+StartupWMClass=puppy-db-tool
 Terminal=false
 Categories=Development;Database;
 StartupNotify=true

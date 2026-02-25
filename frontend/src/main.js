@@ -22,6 +22,7 @@ const state = {
     bySchema: {},
   },
   selectedSchema: '',
+  tableListSearch: '',
   tableOverview: [],
   loadingTableOverview: false,
   tableOverviewError: '',
@@ -61,6 +62,21 @@ const state = {
     columns: [],
     keyColumn: '',
     keyValue: '',
+  },
+  cellViewer: {
+    open: false,
+    tabId: '',
+    rowIndex: -1,
+    colIndex: -1,
+    value: '',
+    prettyValue: '',
+    isJSON: false,
+  },
+  inlineCell: {
+    open: false,
+    tabId: '',
+    rowIndex: -1,
+    colIndex: -1,
   },
   structureModal: {
     open: false,
@@ -291,6 +307,121 @@ function safeFilePart(value) {
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '_')
     .replace(/^[_\-.]+|[_\-.]+$/g, '')
+}
+
+function tableListQuery() {
+  return String(state.tableListSearch || '').trim().toLowerCase()
+}
+
+function tableListMatch(name, schema = '') {
+  const query = tableListQuery()
+  if (!query) {
+    return true
+  }
+  const haystack = `${String(schema || '')} ${String(name || '')}`.toLowerCase()
+  return haystack.includes(query)
+}
+
+function filteredTableOverviewItems() {
+  if (!Array.isArray(state.tableOverview)) {
+    return []
+  }
+  return state.tableOverview.filter((item) => tableListMatch(item?.name, item?.schema || state.selectedSchema))
+}
+
+function cellTextValue(value) {
+  if (value == null) {
+    return 'NULL'
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
+function cellPreviewValue(value, maxLen = 96) {
+  const text = cellTextValue(value)
+  if (text.length <= maxLen) {
+    return text
+  }
+  return `${text.slice(0, Math.max(1, maxLen - 1))}…`
+}
+
+function shouldShowCellViewer(value) {
+  const text = cellTextValue(value)
+  const trimmed = text.trim()
+  const jsonLike = (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  return text.length > 80 || /[\r\n\t]/.test(text) || jsonLike
+}
+
+function decodeJSONValue(value) {
+  const raw = cellTextValue(value)
+  const trimmed = raw.trim()
+  if (!trimmed || !(trimmed.startsWith('{') || trimmed.startsWith('['))) {
+    return { isJSON: false, pretty: '' }
+  }
+  try {
+    const parsed = JSON.parse(trimmed)
+    return {
+      isJSON: true,
+      pretty: JSON.stringify(parsed, null, 2),
+    }
+  } catch {
+    return { isJSON: false, pretty: '' }
+  }
+}
+
+function clearInlineCell() {
+  state.inlineCell = {
+    open: false,
+    tabId: '',
+    rowIndex: -1,
+    colIndex: -1,
+  }
+}
+
+function closeCellViewer() {
+  state.cellViewer = {
+    open: false,
+    tabId: '',
+    rowIndex: -1,
+    colIndex: -1,
+    value: '',
+    prettyValue: '',
+    isJSON: false,
+  }
+}
+
+function clearCellInteractions(tabId = '') {
+  if (!tabId || state.inlineCell.tabId === tabId) {
+    clearInlineCell()
+  }
+  if (!tabId || state.cellViewer.tabId === tabId) {
+    closeCellViewer()
+  }
+}
+
+function focusInlineCellEditor() {
+  if (!state.inlineCell.open) {
+    return
+  }
+  const rowIndex = Number(state.inlineCell.rowIndex)
+  const colIndex = Number(state.inlineCell.colIndex)
+  requestAnimationFrame(() => {
+    const selector = `[data-cell-editor=\"true\"][data-row-index=\"${rowIndex}\"][data-col-index=\"${colIndex}\"]`
+    const input = root.querySelector(selector)
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+      input.focus()
+      input.select()
+    }
+  })
 }
 
 function currentTableState() {
@@ -1252,6 +1383,7 @@ async function hydrateWorkspace() {
     if (state.tableTabs.length > 0 && !state.tableStateByTab[state.activeTableTab]) {
       state.tableTabs = []
       state.activeTableTab = ''
+      clearCellInteractions()
     }
 
     render()
@@ -1428,6 +1560,8 @@ async function openConnection(id) {
     state.tableTabs = []
     state.activeTableTab = ''
     state.tableStateByTab = {}
+    state.tableListSearch = ''
+    clearCellInteractions()
     await hydrateWorkspace()
     notify('Connection opened')
   } catch (err) {
@@ -1454,6 +1588,8 @@ async function disconnectActive() {
     state.tableTabs = []
     state.activeTableTab = ''
     state.tableStateByTab = {}
+    state.tableListSearch = ''
+    clearCellInteractions()
     await loadConnections()
     notify('Disconnected')
   } catch (err) {
@@ -1496,6 +1632,32 @@ function ensureTableState(tabId) {
   return state.tableStateByTab[tabId]
 }
 
+function openCellViewerAt(rowIndex, colIndex) {
+  const tableState = currentTableState()
+  if (!tableState) {
+    return
+  }
+
+  const row = tableState.rows[rowIndex]
+  if (!row || colIndex < 0 || colIndex >= tableState.columns.length) {
+    return
+  }
+
+  const rawValue = cellTextValue(row[colIndex])
+  const decoded = decodeJSONValue(rawValue)
+  state.cellViewer = {
+    open: true,
+    tabId: state.activeTableTab,
+    rowIndex,
+    colIndex,
+    value: rawValue,
+    prettyValue: decoded.pretty,
+    isJSON: decoded.isJSON,
+  }
+  clearInlineCell()
+  render()
+}
+
 async function openTableTab(schema, table) {
   const id = tableTabId(schema, table)
   if (!state.tableTabs.some((item) => item.id === id)) {
@@ -1511,6 +1673,7 @@ async function openTableTab(schema, table) {
 function closeTableTab(id) {
   state.tableTabs = state.tableTabs.filter((tab) => tab.id !== id)
   delete state.tableStateByTab[id]
+  clearCellInteractions(id)
 
   if (state.activeTableTab === id) {
     state.activeTableTab = state.tableTabs.length ? state.tableTabs[state.tableTabs.length - 1].id : ''
@@ -1529,6 +1692,7 @@ async function loadTableData(tabId = state.activeTableTab) {
     return
   }
 
+  clearCellInteractions(tabId)
   const tableState = ensureTableState(tabId)
   tableState.loading = true
   tableState.error = ''
@@ -1923,7 +2087,11 @@ function applyThemeClass() {
 function renderTopBar() {
   const workspace = state.route === 'workspace'
   const searchPlaceholder = workspace ? 'Search tables, views or queries...' : 'Search connections...'
-  const searchValue = state.route === 'manager' ? state.manager.search : state.connectionSearch
+  const searchValue = state.route === 'manager'
+    ? state.manager.search
+    : state.route === 'workspace'
+      ? state.tableListSearch
+      : state.connectionSearch
 
   return `
     <header class="topbar">
@@ -2271,9 +2439,6 @@ function renderConnectionManagerView() {
       ${renderManagerAppNav()}
       <section class="manager-list-panel">
         <div class="manager-list-head">Connections Manager</div>
-        <div class="manager-list-search">
-          <input id="manager-search" type="text" placeholder="Filter connections..." value="${esc(state.manager.search)}" />
-        </div>
         <div class="manager-list-items">${renderManagerConnectionList()}</div>
         <div class="manager-list-actions">
           <button class="btn btn-secondary full" data-action="manager-new">+ New Connection</button>
@@ -2298,8 +2463,10 @@ function renderObjectSchemaList() {
     .map((schema) => {
       const schemaData = state.objectTree.bySchema[schema] || { tables: [], views: [], procedures: [], triggers: [] }
       const isActive = schema === state.selectedSchema
-      const tables = schemaData.tables
-        .slice(0, 14)
+      const visibleTables = schemaData.tables
+        .filter((table) => tableListMatch(table, schema))
+      const tables = visibleTables
+        .slice(0, 120)
         .map((table) => {
           const tabId = tableTabId(schema, table)
           const open = state.tableTabs.some((tab) => tab.id === tabId)
@@ -2314,7 +2481,7 @@ function renderObjectSchemaList() {
       return `
         <div class="schema-block ${isActive ? 'active' : ''}">
           <button class="schema-btn" data-action="select-schema" data-schema="${esc(schema)}">${esc(schema)}</button>
-          ${isActive ? `<div class="schema-table-list">${tables || '<div class="empty-small">No tables</div>'}</div>` : ''}
+          ${isActive ? `<div class="schema-table-list">${tables || '<div class="empty-small">No tables match filter</div>'}</div>` : ''}
         </div>
       `
     })
@@ -2360,7 +2527,12 @@ function renderTableOverviewRows() {
     return '<div class="empty-row">No tables found for this schema/database.</div>'
   }
 
-  return state.tableOverview
+  const filtered = filteredTableOverviewItems()
+  if (!filtered.length) {
+    return '<div class="empty-row">No tables match the current table search.</div>'
+  }
+
+  return filtered
     .map((table) => {
       const schema = table.schema || state.selectedSchema
       const tableName = table.name
@@ -2385,7 +2557,9 @@ function renderTableOverviewRows() {
 }
 
 function renderExplorerView() {
-  const totalRows = state.tableOverview.reduce((sum, item) => sum + Number(item.rows || 0), 0)
+  const visibleTables = filteredTableOverviewItems()
+  const totalRows = visibleTables.reduce((sum, item) => sum + Number(item.rows || 0), 0)
+  const hasTableSearch = tableListQuery() !== ''
 
   return `
     <section class="workspace-view">
@@ -2414,7 +2588,7 @@ function renderExplorerView() {
       </div>
 
       <div class="overview-footer">
-        <div>Total Tables: <strong>${state.tableOverview.length}</strong></div>
+        <div>Total Tables: <strong>${visibleTables.length}</strong>${hasTableSearch ? ` <span class="muted-inline">(filtered from ${state.tableOverview.length})</span>` : ''}</div>
         <div>Total Rows: <strong>${Number.isFinite(totalRows) ? totalRows.toLocaleString() : '-'}</strong></div>
         <div>Connected as <strong>${esc(state.activeConnection?.name || '-')}</strong></div>
       </div>
@@ -2466,7 +2640,37 @@ function renderTableRows(tableState) {
       const selected = rowIndex === tableState.selectedRow
       const template = gridTemplateFromColumns(tableState.columns, tableState.columnWidths)
       const cells = tableState.columns
-        .map((col, colIndex) => `<div class="data-cell">${esc(row[colIndex])}</div>`)
+        .map((col, colIndex) => {
+          const raw = row[colIndex]
+          const fullValue = cellTextValue(raw)
+          const previewValue = cellPreviewValue(raw)
+          const showViewer = shouldShowCellViewer(raw)
+          const isInlineCell = state.inlineCell.open
+            && state.inlineCell.tabId === state.activeTableTab
+            && state.inlineCell.rowIndex === rowIndex
+            && state.inlineCell.colIndex === colIndex
+
+          if (isInlineCell) {
+            return `
+              <div class="data-cell data-cell-editing" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="${esc(fullValue)}">
+                <textarea
+                  class="data-cell-inline-editor"
+                  data-cell-editor="true"
+                  data-row-index="${rowIndex}"
+                  data-col-index="${colIndex}"
+                  readonly
+                >${esc(fullValue)}</textarea>
+              </div>
+            `
+          }
+
+          return `
+            <div class="data-cell ${showViewer ? 'has-view-btn' : ''}" data-row-index="${rowIndex}" data-col-index="${colIndex}" title="${esc(fullValue)}">
+              <div class="data-cell-content">${esc(previewValue)}</div>
+              ${showViewer ? `<button class="mini-btn data-cell-view-btn" data-action="open-cell-view" data-row-index="${rowIndex}" data-col-index="${colIndex}">View</button>` : ''}
+            </div>
+          `
+        })
         .join('')
       return `
         <div class="data-row ${selected ? 'selected' : ''}" data-action="select-row" data-index="${rowIndex}" data-table-grid="active" style="grid-template-columns:${template};">
@@ -2867,7 +3071,7 @@ function renderStructureModal() {
 
   return `
     <div class="overlay" data-action="structure-close-bg">
-      <div class="structure-modal" onclick="event.stopPropagation()">
+      <div class="structure-modal">
         <div class="drawer-head">
           <h3>Table Structure</h3>
           <button class="btn btn-icon" data-action="structure-close">x</button>
@@ -2921,7 +3125,7 @@ function renderRowModal() {
 
   return `
     <div class="overlay" data-action="row-modal-close-bg">
-      <div class="row-modal" onclick="event.stopPropagation()">
+      <div class="row-modal">
         <div class="drawer-head">
           <h3>${modeTitle}</h3>
           <button class="btn btn-icon" data-action="row-modal-close">x</button>
@@ -2935,6 +3139,40 @@ function renderRowModal() {
         <div class="drawer-foot">
           <button class="btn btn-secondary" data-action="row-modal-close" ${modal.busy ? 'disabled' : ''}>Cancel</button>
           <button class="btn ${isDelete ? 'btn-danger' : 'btn-primary'}" data-action="row-modal-submit" ${modal.busy || modal.loading ? 'disabled' : ''}>${modal.busy ? 'Working...' : modal.mode === 'insert' ? 'Insert Row' : modal.mode === 'update' ? 'Update Row' : 'Delete Row'}</button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function renderCellViewerModal() {
+  const viewer = state.cellViewer
+  if (!viewer.open) {
+    return ''
+  }
+
+  const table = state.tableTabs.find((item) => item.id === viewer.tabId)
+  const tableState = state.tableStateByTab[viewer.tabId]
+  const colName = tableState?.columns?.[viewer.colIndex] || `Column ${viewer.colIndex + 1}`
+  const body = viewer.isJSON ? viewer.prettyValue : viewer.value
+
+  return `
+    <div class="overlay" data-action="cell-view-close-bg">
+      <div class="cell-viewer-modal">
+        <div class="drawer-head">
+          <h3>Cell Value</h3>
+          <button class="btn btn-icon" data-action="cell-view-close">x</button>
+        </div>
+        <div class="cell-view-meta">
+          <div>Table: <strong>${esc(table ? `${table.schema}.${table.table}` : '-')}</strong></div>
+          <div>Column: <strong>${esc(colName)}</strong></div>
+          ${viewer.isJSON ? '<span class="cell-view-badge">JSON decoded</span>' : ''}
+        </div>
+        <div class="cell-view-body">
+          <pre class="cell-view-content ${viewer.isJSON ? 'json' : ''}">${esc(body || '(empty)')}</pre>
+        </div>
+        <div class="drawer-foot">
+          <button class="btn btn-secondary" data-action="cell-view-close">Close</button>
         </div>
       </div>
     </div>
@@ -2963,9 +3201,29 @@ function render() {
       ${bodyContent}
       ${renderStructureModal()}
       ${renderRowModal()}
+      ${renderCellViewerModal()}
       ${renderToast()}
     </div>
   `
+}
+
+function renderWithInputFocus(selector, selectionStart = null, selectionEnd = null) {
+  render()
+  requestAnimationFrame(() => {
+    const input = root.querySelector(selector)
+    if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
+      return
+    }
+    input.focus()
+    const valueLength = input.value.length
+    const start = Number.isFinite(selectionStart) ? Math.max(0, Math.min(Number(selectionStart), valueLength)) : valueLength
+    const end = Number.isFinite(selectionEnd) ? Math.max(start, Math.min(Number(selectionEnd), valueLength)) : start
+    try {
+      input.setSelectionRange(start, end)
+    } catch {
+      // setSelectionRange can fail for some input modes
+    }
+  })
 }
 
 function updateConnectionFormField(field, rawValue, isCheckbox = false) {
@@ -3090,9 +3348,53 @@ function handleMouseUp() {
   document.body.classList.remove('resizing-columns')
 }
 
+function handleDoubleClick(event) {
+  if (!(event.target instanceof Element)) {
+    return
+  }
+
+  if (event.target.closest('[data-action="open-cell-view"]')) {
+    return
+  }
+
+  const cell = event.target.closest('.data-cell')
+  if (!cell) {
+    return
+  }
+
+  const rowIndex = Number(cell.dataset.rowIndex ?? -1)
+  const colIndex = Number(cell.dataset.colIndex ?? -1)
+  const tableState = currentTableState()
+  if (!tableState || !Number.isInteger(rowIndex) || !Number.isInteger(colIndex)) {
+    return
+  }
+  if (rowIndex < 0 || rowIndex >= tableState.rows.length || colIndex < 0 || colIndex >= tableState.columns.length) {
+    return
+  }
+
+  state.inlineCell = {
+    open: true,
+    tabId: state.activeTableTab,
+    rowIndex,
+    colIndex,
+  }
+  closeCellViewer()
+  render()
+  focusInlineCellEditor()
+}
+
 function handleClick(event) {
-  const target = event.target.closest('[data-action]')
-  if (!target) {
+  if (!(event.target instanceof Element)) {
+    return
+  }
+
+  const clickTarget = event.target
+  const target = clickTarget.closest('[data-action]')
+  if (!target || (String(target.dataset.action || '').endsWith('-close-bg') && target !== clickTarget)) {
+    if (state.inlineCell.open && !clickTarget.closest('[data-cell-editor="true"]')) {
+      clearInlineCell()
+      render()
+    }
     return
   }
 
@@ -3208,6 +3510,9 @@ function handleClick(event) {
 
     case 'switch-workspace':
       state.workspaceTab = target.dataset.view || 'explorer'
+      if (state.workspaceTab !== 'table') {
+        clearCellInteractions(state.activeTableTab)
+      }
       render()
       break
 
@@ -3233,6 +3538,8 @@ function handleClick(event) {
       const schema = target.dataset.schema || state.selectedSchema
       const table = target.dataset.table || ''
       if (table) {
+        clearInlineCell()
+        closeCellViewer()
         openTableTab(schema, table)
       }
       break
@@ -3277,6 +3584,8 @@ function handleClick(event) {
         if (state.structureModal.open) {
           closeStructureModal()
         }
+        clearInlineCell()
+        closeCellViewer()
         openTableTab(schema, table)
       }
       break
@@ -3285,6 +3594,7 @@ function handleClick(event) {
     case 'activate-table-tab':
       state.activeTableTab = id
       state.workspaceTab = 'table'
+      clearCellInteractions()
       render()
       break
 
@@ -3327,6 +3637,7 @@ function handleClick(event) {
       tableState.page = 1
       tableState.sortColumn = ''
       tableState.sortDirection = ''
+      clearCellInteractions(state.activeTableTab)
       loadTableData(state.activeTableTab)
       break
     }
@@ -3343,32 +3654,52 @@ function handleClick(event) {
       tableState.sortColumn = ''
       tableState.sortDirection = ''
       tableState.page = 1
+      clearCellInteractions(state.activeTableTab)
       loadTableData(state.activeTableTab)
       break
     }
 
     case 'sort-column':
+      clearCellInteractions(state.activeTableTab)
       setTableSort(target.dataset.column || '')
       break
 
     case 'select-row': {
       const tableState = currentTableState()
       if (tableState) {
+        clearInlineCell()
+        closeCellViewer()
         tableState.selectedRow = Number(target.dataset.index || -1)
         render()
       }
       break
     }
 
+    case 'open-cell-view': {
+      const rowIndex = Number(target.dataset.rowIndex || -1)
+      const colIndex = Number(target.dataset.colIndex || -1)
+      openCellViewerAt(rowIndex, colIndex)
+      break
+    }
+
+    case 'cell-view-close-bg':
+    case 'cell-view-close':
+      closeCellViewer()
+      render()
+      break
+
     case 'table-insert':
+      clearCellInteractions(state.activeTableTab)
       openRowModal('insert')
       break
 
     case 'table-update':
+      clearCellInteractions(state.activeTableTab)
       openRowModal('update')
       break
 
     case 'table-delete':
+      clearCellInteractions(state.activeTableTab)
       openRowModal('delete')
       break
 
@@ -3478,11 +3809,19 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {
     if (target.id === 'global-search') {
+      const selStart = target.selectionStart
+      const selEnd = target.selectionEnd
       if (state.route === 'manager') {
         state.manager.search = target.value
-        render()
+        renderWithInputFocus('#global-search', selStart, selEnd)
         return
       }
+      if (state.route === 'workspace') {
+        state.tableListSearch = target.value
+        renderWithInputFocus('#global-search', selStart, selEnd)
+        return
+      }
+
       state.connectionSearch = target.value
       state.connectionPage = 1
       if (searchTimer) {
@@ -3491,28 +3830,8 @@ function handleInput(event) {
       searchTimer = setTimeout(() => {
         if (state.route === 'connections') {
           loadConnections()
-          return
-        }
-
-        const query = state.connectionSearch.trim().toLowerCase()
-        if (!query) {
-          render()
-          return
-        }
-
-        const activeSchema = state.selectedSchema
-        const schemaItems = state.objectTree.bySchema[activeSchema]?.tables || []
-        const match = schemaItems.find((item) => item.toLowerCase().includes(query))
-        if (match) {
-          openTableTab(activeSchema, match)
         }
       }, 220)
-      return
-    }
-
-    if (target.id === 'manager-search') {
-      state.manager.search = target.value
-      render()
       return
     }
 
@@ -3562,6 +3881,7 @@ function handleInput(event) {
 
 async function init() {
   root.addEventListener('click', handleClick)
+  root.addEventListener('dblclick', handleDoubleClick)
   root.addEventListener('input', handleInput)
   root.addEventListener('change', handleInput)
   root.addEventListener('mousedown', handleMouseDown)
