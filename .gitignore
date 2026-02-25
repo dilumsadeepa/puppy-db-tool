@@ -1,0 +1,17 @@
+# Build and packaging artifacts
+build/bin/
+dist/
+
+# Frontend dependencies/build output
+frontend/node_modules/
+frontend/dist/
+
+# IDE / OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local runtime or temp files
+*.log
+*.tmp

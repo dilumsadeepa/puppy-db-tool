@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Puppy DB Tool</title>
+    <meta name="description" content="Puppy DB Tool desktop database manager downloads, setup guide, and screenshots." />
+    <style>
+      :root {
+        --bg: #050f24;
+        --panel: #0a1a3a;
+        --panel-2: #10244d;
+        --line: #234478;
+        --text: #dbe8ff;
+        --muted: #9cb4dc;
+        --accent: #2e77ff;
+        --accent-2: #48b6ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Inter", "Noto Sans", sans-serif;
+        background:
+          radial-gradient(1200px 500px at 10% -10%, #17386f 0%, rgba(23, 56, 111, 0) 70%),
+          radial-gradient(1100px 450px at 90% -20%, #1a2d59 0%, rgba(26, 45, 89, 0) 70%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        width: min(1180px, 100% - 32px);
+        margin: 0 auto;
+      }
+
+      header {
+        border-bottom: 1px solid #1d3762;
+        background: rgba(3, 10, 24, 0.72);
+        backdrop-filter: blur(8px);
+        position: sticky;
+        top: 0;
+        z-index: 20;
+      }
+
+      .topbar {
+        min-height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .brand {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 700;
+        padding: 0 16px;
+      }
+
+      .btn.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      }
+
+      .btn.ghost {
+        border-color: #325e9c;
+        color: #cae0ff;
+        background: rgba(23, 45, 84, 0.48);
+      }
+
+      .hero {
+        padding: 40px 0 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(36px, 6vw, 62px);
+        line-height: 1.05;
+      }
+
+      .sub {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 19px;
+        max-width: 920px;
+      }
+
+      section {
+        margin: 26px 0;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(12, 27, 57, 0.92), rgba(8, 19, 43, 0.95));
+        box-shadow: 0 20px 50px rgba(2, 8, 20, 0.4);
+        padding: 18px;
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      .dl-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .dl-card {
+        border: 1px solid #2a4f86;
+        border-radius: 12px;
+        background: rgba(16, 34, 68, 0.86);
+        padding: 14px;
+      }
+
+      .dl-card h3 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+
+      .dl-card p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+
+      .cmd {
+        margin-top: 10px;
+        background: #07132d;
+        border: 1px solid #294a7f;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-family: "JetBrains Mono", "Consolas", monospace;
+        color: #c3dcff;
+        overflow: auto;
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+        gap: 10px;
+      }
+
+      .feature {
+        border: 1px solid #27487d;
+        border-radius: 12px;
+        padding: 12px;
+        color: #c8dcff;
+        background: rgba(14, 30, 61, 0.72);
+      }
+
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(260px, 1fr));
+        gap: 12px;
+      }
+
+      .shot {
+        border: 1px solid #2b4f88;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #0a1c3f;
+      }
+
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .shot figcaption {
+        font-size: 13px;
+        color: #9fb7de;
+        padding: 10px 12px;
+      }
+
+      footer {
+        padding: 20px 0 34px;
+        color: #8ca6d1;
+        font-size: 14px;
+      }
+
+      @media (max-width: 960px) {
+        .dl-grid,
+        .features,
+        .shots {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap topbar">
+        <div class="brand">Puppy DB Tool</div>
+        <div class="actions">
+          <a class="btn ghost" href="https://github.com/dilumsadeepa/puppy-db-tool" target="_blank" rel="noreferrer">GitHub Repo</a>
+          <a class="btn primary" href="https://github.com/dilumsadeepa/puppy-db-tool/releases/latest">Latest Release</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <h1>Desktop Database Manager</h1>
+        <p class="sub">
+          Connect to MySQL, PostgreSQL, MongoDB, and Redis. Use direct connection or SSH tunnel,
+          browse tables, edit rows, and run queries from a modern dark UI.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Downloads</h2>
+        <div class="dl-grid">
+          <article class="dl-card">
+            <h3>Linux (.deb)</h3>
+            <p>Ubuntu / Linux Mint / Debian (amd64)</p>
+            <a class="btn primary" href="https://github.com/dilumsadeepa/puppy-db-tool/releases/latest/download/puppy-db-tool_0.1.1_amd64.deb">Download Linux Package</a>
+            <div class="cmd">sudo dpkg -i puppy-db-tool_0.1.1_amd64.deb
+sudo apt -f install -y
+puppy-db-tool</div>
+          </article>
+          <article class="dl-card">
+            <h3>Windows (.exe)</h3>
+            <p>Windows 10/11 (x64)</p>
+            <a class="btn primary" href="https://github.com/dilumsadeepa/puppy-db-tool/releases/latest/download/puppy-db-tool-windows-amd64.exe">Download Windows EXE</a>
+            <div class="cmd">Double-click: puppy-db-tool-windows-amd64.exe</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>How To Use</h2>
+        <div class="features">
+          <div class="feature"><strong>1. Add Connection</strong><br />Create direct or SSH tunnel connection.</div>
+          <div class="feature"><strong>2. Open Database</strong><br />Browse schemas, tables, and structure metadata.</div>
+          <div class="feature"><strong>3. Manage Data</strong><br />Insert, update, delete, filter, and sort rows.</div>
+          <div class="feature"><strong>4. Run SQL/Commands</strong><br />Use Query Studio with snippets and history.</div>
+          <div class="feature"><strong>5. Export</strong><br />Export full database and query results.</div>
+          <div class="feature"><strong>6. Table Actions</strong><br />Browse, structure, empty, drop, and create tables.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Screenshots</h2>
+        <div class="shots">
+          <figure class="shot">
+            <img src="./assets/screenshots/01-connections.png" alt="Connections screen" />
+            <figcaption>Connections dashboard</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/02-manager.png" alt="Connection manager screen" />
+            <figcaption>Connections manager and form</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/03-new-connection.png" alt="New connection drawer" />
+            <figcaption>New connection flow</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/06-overview.png" alt="Tables overview" />
+            <figcaption>Tables overview</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/04-table-data.png" alt="Table data view" />
+            <figcaption>Table data with filter and pagination</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screenshots/05-query-studio.png" alt="Query studio view" />
+            <figcaption>Query Studio and results</figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap">
+      Puppy DB Tool • Built with Go + Wails
+    </footer>
+  </body>
+</html>
