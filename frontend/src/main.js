@@ -482,12 +482,12 @@ function ensureColumnWidths(columns, current) {
 
 function gridTemplateFromColumns(columns, widths) {
   if (!columns || !columns.length) {
-    return 'minmax(140px, 1fr)'
+    return '140px'
   }
   return columns
     .map((column) => {
       const width = Math.max(100, Math.min(920, Number(widths?.[column] || 180)))
-      return `minmax(${width}px, 1fr)`
+      return `${width}px`
     })
     .join(' ')
 }
@@ -2616,7 +2616,7 @@ function renderTableTabs() {
 
 function renderSortIndicator(column, tableState) {
   if (!tableState || tableState.sortColumn !== column) {
-    return '+/-'
+    return ''
   }
   return tableState.sortDirection === 'DESC' ? 'v' : '^'
 }
@@ -2839,7 +2839,8 @@ function renderQueryResults() {
     .join('')
   const rows = result.rows
     .map((row) => {
-      return `<div class="result-row" data-query-grid="active" style="grid-template-columns:${resultTemplate};">${row.map((v) => `<div>${esc(v)}</div>`).join('')}</div>`
+      const values = result.columns.map((_, index) => row?.[index] ?? '')
+      return `<div class="result-row" data-query-grid="active" style="grid-template-columns:${resultTemplate};">${values.map((v) => `<div>${esc(v)}</div>`).join('')}</div>`
     })
     .join('')
 

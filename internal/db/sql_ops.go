@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -1781,6 +1782,14 @@ func scanRows(rows *sql.Rows, columns []string) ([][]string, error) {
 func stringify(v any) string {
 	if v == nil {
 		return "NULL"
+	}
+	// Drivers can return typed nil values (for example []byte(nil)) for SQL NULL.
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if rv.IsNil() {
+			return "NULL"
+		}
 	}
 	switch t := v.(type) {
 	case []byte:
